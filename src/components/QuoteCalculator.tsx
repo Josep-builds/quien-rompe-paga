@@ -9,6 +9,7 @@ import {
   PricingValidationError,
   QuoteResult,
 } from "@/lib/pricing";
+import { saveQuote } from "@/app/quotes/actions";
 
 const DATA_TYPE_OPTIONS = ["CURP", "INE", "Teléfono", "Datos financieros"];
 
@@ -18,12 +19,19 @@ const currency = new Intl.NumberFormat("es-MX", {
   maximumFractionDigits: 0,
 });
 
-export function QuoteCalculator() {
+type SaveState =
+  | { status: "idle" }
+  | { status: "saving" }
+  | { status: "saved" }
+  | { status: "error"; message: string };
+
+export function QuoteCalculator({ isAuthenticated }: { isAuthenticated: boolean }) {
   const [recordsAffected, setRecordsAffected] = useState("");
   const [dataTypes, setDataTypes] = useState<string[]>([]);
   const [sensitiveData, setSensitiveData] = useState(false);
   const [result, setResult] = useState<QuoteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
 
   function toggleDataType(type: string) {
     setDataTypes((current) =>
@@ -35,6 +43,7 @@ export function QuoteCalculator() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSaveState({ status: "idle" });
     try {
       const quote = computeQuote({ recordsAffected, sensitiveData });
       setResult(quote);
@@ -46,6 +55,16 @@ export function QuoteCalculator() {
       } else {
         throw err;
       }
+    }
+  }
+
+  async function handleSave() {
+    setSaveState({ status: "saving" });
+    const outcome = await saveQuote({ recordsAffected, sensitiveData, dataTypes });
+    if (outcome.ok) {
+      setSaveState({ status: "saved" });
+    } else {
+      setSaveState({ status: "error", message: outcome.error });
     }
   }
 
@@ -150,6 +169,29 @@ export function QuoteCalculator() {
             <div className={styles.honestNote}>
               El ratio compara contra el techo legal; con aplicación débil, el motor real
               es el riesgo reputacional.
+            </div>
+
+            <div className={styles.saveRow}>
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  className={styles.saveButton}
+                  onClick={handleSave}
+                  disabled={saveState.status === "saving"}
+                >
+                  {saveState.status === "saving" ? "Guardando…" : "Guardar cotización"}
+                </button>
+              ) : (
+                <p className={styles.saveHint}>
+                  Inicia sesión con Google para guardar esta cotización.
+                </p>
+              )}
+              {saveState.status === "saved" && (
+                <span className={styles.saveSuccess}>Cotización guardada.</span>
+              )}
+              {saveState.status === "error" && (
+                <span className={styles.saveError}>{saveState.message}</span>
+              )}
             </div>
           </>
         ) : (

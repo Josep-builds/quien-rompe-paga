@@ -272,3 +272,47 @@
   color: #6b7280;
   font-style: italic;
 }
+
+.saveRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.saveButton {
+  background: #0a2540;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saveButton:hover:not(:disabled) {
+  background: #0f3a63;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.saveHint {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.saveSuccess {
+  font-size: 0.85rem;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.saveError {
+  font-size: 0.85rem;
+  color: #b91c1c;
+  font-weight: 600;
+}

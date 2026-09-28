@@ -35,7 +35,7 @@ export default async function Home() {
         Cotización de recuperación de víctimas para empresas con una brecha de datos.
       </p>
 
-      <QuoteCalculator />
+      <QuoteCalculator isAuthenticated={!!user} />
     </main>
   );
 }

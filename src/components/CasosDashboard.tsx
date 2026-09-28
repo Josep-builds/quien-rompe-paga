@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./CasosDashboard.module.css";
-import { generateSimulatedCases, updateContractedCapacity } from "@/app/quotes/[id]/actions";
+import {
+  generateSimulatedCases,
+  resolveCase,
+  updateContractedCapacity,
+} from "@/app/quotes/[id]/actions";
+import { computeInvoice } from "@/lib/invoice";
 
 export interface QuoteRow {
   id: string;
@@ -43,6 +48,11 @@ export function CasosDashboard({ quote, cases }: { quote: QuoteRow; cases: CaseR
   const [generateError, setGenerateError] = useState<string | null>(null);
 
   const hasCases = cases.length > 0;
+
+  const invoice = computeInvoice({
+    setupFee: quote.setup_fee,
+    cases: cases.map((c) => ({ status: c.status, isSurge: c.is_surge })),
+  });
 
   async function handleUpdateCapacity() {
     setCapacityError(null);
@@ -135,32 +145,92 @@ export function CasosDashboard({ quote, cases }: { quote: QuoteRow; cases: CaseR
       </div>
 
       {hasCases && (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Víctima</th>
-                <th>Estado</th>
-                <th>Creado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cases.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    {c.victim_alias}
-                    {c.is_surge && <span className={styles.surgeBadge}>SURGE</span>}
-                  </td>
-                  <td className={c.status === "open" ? styles.statusOpen : styles.statusResolved}>
-                    {c.status === "open" ? "Abierto" : "Resuelto"}
-                  </td>
-                  <td>{new Date(c.created_at).toLocaleDateString("es-MX")}</td>
+        <>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Víctima</th>
+                  <th>Estado</th>
+                  <th>Evidencia</th>
+                  <th>Creado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {cases.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      {c.victim_alias}
+                      {c.is_surge && <span className={styles.surgeBadge}>SURGE</span>}
+                    </td>
+                    <td
+                      className={c.status === "open" ? styles.statusOpen : styles.statusResolved}
+                    >
+                      {c.status === "open" ? "Abierto" : "Resuelto"}
+                    </td>
+                    <td>
+                      {c.status === "resolved" ? (
+                        c.evidence_note
+                      ) : (
+                        <ResolveCaseForm caseId={c.id} onResolved={() => router.refresh()} />
+                      )}
+                    </td>
+                    <td>{new Date(c.created_at).toLocaleDateString("es-MX")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className={styles.invoiceBar}>
+            Casos: {invoice.openCount.toLocaleString("es-MX")} abiertos ·{" "}
+            {invoice.resolvedCount.toLocaleString("es-MX")} resueltos · Facturable:{" "}
+            {currency.format(invoice.billableTotal)}
+          </div>
+        </>
       )}
     </main>
+  );
+}
+
+function ResolveCaseForm({ caseId, onResolved }: { caseId: string; onResolved: () => void }) {
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleResolve() {
+    setError(null);
+    if (note.trim().length === 0) {
+      setError("La nota de evidencia es obligatoria.");
+      return;
+    }
+    setSaving(true);
+    const result = await resolveCase(caseId, note);
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onResolved();
+  }
+
+  return (
+    <div className={styles.evidenceForm}>
+      <textarea
+        placeholder="Nota de evidencia (obligatoria)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={2000}
+      />
+      <button
+        type="button"
+        className={styles.smallButton}
+        onClick={handleResolve}
+        disabled={saving || note.trim().length === 0}
+      >
+        {saving ? "Guardando…" : "Marcar resuelto"}
+      </button>
+      {error && <span className={styles.smallError}>{error}</span>}
+    </div>
   );
 }

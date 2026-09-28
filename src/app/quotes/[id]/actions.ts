@@ -7,6 +7,7 @@ export type ActionResult<T = undefined> =
   | { ok: false; error: string };
 
 const SIMULATED_CASE_COUNT = 120;
+const MAX_EVIDENCE_NOTE_LENGTH = 2000;
 
 // Invented names only, always suffixed "(SIMULADO)" - no real victim data.
 const SIMULATED_FIRST_NAMES = [
@@ -132,6 +133,45 @@ export async function updateContractedCapacity(
 
   if (error) {
     return { ok: false, error: "No se pudo actualizar la capacidad." };
+  }
+
+  return { ok: true, data: undefined };
+}
+
+/**
+ * Marks a case resolved. Requires a non-empty, length-capped evidence
+ * note - enforced here (and by the DB CHECK constraint on public.cases)
+ * regardless of what the UI does. resolved_at is set by the DB trigger.
+ */
+export async function resolveCase(caseId: string, evidenceNote: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Inicia sesión con Google para continuar." };
+  }
+
+  const trimmed = evidenceNote.trim();
+  if (trimmed.length === 0) {
+    return { ok: false, error: "La nota de evidencia no puede estar vacía." };
+  }
+  if (trimmed.length > MAX_EVIDENCE_NOTE_LENGTH) {
+    return {
+      ok: false,
+      error: `La nota de evidencia no puede superar ${MAX_EVIDENCE_NOTE_LENGTH} caracteres.`,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("cases")
+    .update({ status: "resolved", evidence_note: trimmed })
+    .eq("id", caseId)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return { ok: false, error: "No se pudo marcar el caso como resuelto." };
   }
 
   return { ok: true, data: undefined };

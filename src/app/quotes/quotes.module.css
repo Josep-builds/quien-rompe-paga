@@ -1,0 +1,54 @@
+.page {
+  min-height: 100%;
+  padding: 2rem 1.5rem 4rem;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #0a2540;
+  text-decoration: underline;
+}
+
+.title {
+  font-size: 1.5rem;
+  color: #0a2540;
+  margin-bottom: 1.5rem;
+}
+
+.empty {
+  color: #6b7280;
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.itemLink {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  color: #111827;
+  text-decoration: none;
+}
+
+.itemLink:hover {
+  background: #f9fafb;
+}
+
+.itemDate {
+  color: #6b7280;
+  font-size: 0.85rem;
+}

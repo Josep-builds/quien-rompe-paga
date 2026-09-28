@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import styles from "@/app/page.module.css";
 import {
   computeQuote,
@@ -22,7 +23,7 @@ const currency = new Intl.NumberFormat("es-MX", {
 type SaveState =
   | { status: "idle" }
   | { status: "saving" }
-  | { status: "saved" }
+  | { status: "saved"; quoteId: string }
   | { status: "error"; message: string };
 
 export function QuoteCalculator({ isAuthenticated }: { isAuthenticated: boolean }) {
@@ -62,7 +63,7 @@ export function QuoteCalculator({ isAuthenticated }: { isAuthenticated: boolean 
     setSaveState({ status: "saving" });
     const outcome = await saveQuote({ recordsAffected, sensitiveData, dataTypes });
     if (outcome.ok) {
-      setSaveState({ status: "saved" });
+      setSaveState({ status: "saved", quoteId: outcome.quoteId });
     } else {
       setSaveState({ status: "error", message: outcome.error });
     }
@@ -187,7 +188,10 @@ export function QuoteCalculator({ isAuthenticated }: { isAuthenticated: boolean 
                 </p>
               )}
               {saveState.status === "saved" && (
-                <span className={styles.saveSuccess}>Cotización guardada.</span>
+                <span className={styles.saveSuccess}>
+                  Cotización guardada.{" "}
+                  <Link href={`/quotes/${saveState.quoteId}`}>Ver panel de casos →</Link>
+                </span>
               )}
               {saveState.status === "error" && (
                 <span className={styles.saveError}>{saveState.message}</span>

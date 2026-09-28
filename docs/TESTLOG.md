@@ -5,6 +5,55 @@ Newest entry first.
 
 ---
 
+## 2026-09-28 — Billing rule (Blueprint Condition #4): Casos dashboard + invoice
+
+**Feature, not a bug fix.** Implements the "pay only for resolved victims"
+billing rule end to end: a login-required Casos dashboard per saved quote,
+120 invented SIMULADO-labeled victim cases, resolving a case only with a
+mandatory evidence note, and an invoice panel that bills exactly what the
+packet's formula says.
+
+**Built:**
+- `src/lib/invoice.ts` — pure `computeInvoice()`: `billableTotal = setupFee
+  + Σ resolved-base × fee + Σ resolved-surge × fee × 1.3`. Recomputed from
+  the full case list every call — never a separately mutable counter.
+- `supabase/migrations/002_cases_simulation.sql` (not applied yet — see
+  below) — adds `cases.victim_alias` (DB `CHECK` requires it contain
+  "simulado", case-insensitive) and `cases.is_surge`.
+- `src/app/quotes/[id]/actions.ts` — `generateSimulatedCases()` (120 fake
+  name pairs, refuses to run twice per quote), `updateContractedCapacity()`
+  (locked once cases exist, since `is_surge` is fixed at generation time),
+  `resolveCase()` (rejects empty/over-2000-char evidence notes server-side,
+  on top of the DB `CHECK` constraint from `001_init.sql`).
+- `src/components/CasosDashboard.tsx` + `/quotes`, `/quotes/[id]` routes —
+  both redirect signed-out visitors to `/`. Case list, per-row "Marcar
+  resuelto" form (submit disabled client-side until the note is non-empty,
+  matching the DB-level enforcement), and the invoice bar: "Casos: X
+  abiertos · Y resueltos · Facturable: $Z" per `docs/mockup.png`.
+
+**Test:** `src/lib/invoice.test.ts`, 12 tests, all green —
+- Packet test plan **#4** (billing rule): generating cases (all `open`)
+  bills MX$0 beyond setup; resolving one case adds exactly one fee;
+  resolving a second adds exactly one more (no double counting).
+- Packet test plan **#5** (surge): a resolved surge case bills at
+  `fee × 1.3`; open surge cases don't bill until resolved; a 120-case,
+  capacity-50 scenario (50 base + 70 surge, matching the mockup's case
+  count) computes the exact expected total.
+- Plus: pure-function determinism, negative-input validation, custom
+  config, empty case list.
+
+`npm test`: **29/29 passing** (17 from `pricing.test.ts` + 12 new).
+`npm run build` and `npm run lint`: clean.
+
+**Not yet live:** `supabase/migrations/002_cases_simulation.sql` has not
+been run — pasted for the user to apply in the Supabase SQL Editor.
+Until then, "Generar casos simulados" and case resolution will fail
+against production (the `victim_alias`/`is_surge` columns don't exist).
+Evidence-note enforcement was verified via the unit tests and the DB
+`CHECK` constraint text, not against a live resolve (no rows exist yet).
+
+---
+
 ## 2026-09-28 — Quote omitted the surge reserve
 
 **Bug:** `computeQuote()` accepted an optional `surgeReserve` override that

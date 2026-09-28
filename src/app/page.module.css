@@ -171,6 +171,27 @@
   opacity: 0.9;
 }
 
+.cardBreakdown {
+  list-style: none;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.cardBreakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cardBreakdown li span:first-child {
+  opacity: 0.9;
+}
+
 .ratioBar {
   background: #f3f4f6;
   border: 1px solid #e5e7eb;

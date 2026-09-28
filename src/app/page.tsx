@@ -127,6 +127,25 @@ export default function Home() {
                   <div className={styles.cardNote}>
                     Solo pagas por víctima resuelta ({result.expectedCases.toLocaleString("es-MX")} casos esperados).
                   </div>
+                  <ul className={styles.cardBreakdown}>
+                    <li>
+                      <span>Setup</span>
+                      <span>{currency.format(result.setupFee)}</span>
+                    </li>
+                    <li>
+                      <span>Casos esperados × cuota</span>
+                      <span>{currency.format(result.casesCost)}</span>
+                    </li>
+                    <li>
+                      <span>
+                        Reserva de surge
+                        {result.casesAboveCapacity > 0
+                          ? ` (${result.casesAboveCapacity.toLocaleString("es-MX")} casos sobre capacidad de ${result.contractedCapacity.toLocaleString("es-MX")})`
+                          : ` (dentro de capacidad de ${result.contractedCapacity.toLocaleString("es-MX")})`}
+                      </span>
+                      <span>{currency.format(result.surgeReserve)}</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
 

@@ -10,7 +10,11 @@
 export class PricingValidationError extends Error {}
 
 export interface PricingConfig {
-  /** MXN value of one UMA. Illustrative; verify the current year's value. */
+  /**
+   * MXN daily value of one UMA. Official 2026 value: $117.31, published by
+   * INEGI in the DOF on 2026-01-09, effective 2026-02-01 to 2027-01-31.
+   * Source: https://dof.gob.mx/nota_detalle.php?codigo=5778072&fecha=09%2F01%2F2026
+   */
   umaValue: number;
   /** Fine ceiling base, in UMA units, per LFPDPPP. */
   fineBaseMultiplierUma: number;
@@ -22,15 +26,25 @@ export interface PricingConfig {
   setupFee: number;
   /** Fee charged per resolved case (never per notification sent). */
   feePerResolvedCase: number;
+  /**
+   * Default contracted case capacity for the first 72h after publication.
+   * Cases above this line draw on the surge reserve (Blueprint Bet 3 /
+   * Condition #5).
+   */
+  defaultContractedCapacity: number;
+  /** Surge premium applied to cases above contracted capacity: +30%. */
+  surgeRate: number;
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
-  umaValue: 117,
+  umaValue: 117.31,
   fineBaseMultiplierUma: 320_000,
   sensitiveMultiplier: 2,
   activationRate: 0.02,
   setupFee: 150_000,
   feePerResolvedCase: 800,
+  defaultContractedCapacity: 500,
+  surgeRate: 0.3,
 };
 
 export const MIN_RECORDS_AFFECTED = 1;
@@ -41,18 +55,26 @@ export interface QuoteInput {
   recordsAffected: number | string;
   sensitiveData: boolean;
   /**
-   * Optional pre-computed surge reserve to add to the plan total. Defaults
-   * to 0 — surge pricing against contracted capacity is modeled per-case
-   * at invoicing time (see docs/IMPLEMENTATION_PROMPT.md F13), not baked
-   * into the initial quote.
+   * Contracted case capacity for the first 72h. Defaults to
+   * config.defaultContractedCapacity (500). Expected cases above this
+   * capacity draw on the surge reserve.
    */
-  surgeReserve?: number;
+  contractedCapacity?: number;
 }
 
 export interface QuoteResult {
   recordsAffected: number;
   fineCeiling: number;
   expectedCases: number;
+  contractedCapacity: number;
+  casesAboveCapacity: number;
+  /** setup fee, per plan config. */
+  setupFee: number;
+  /** expectedCases × feePerResolvedCase — the base recovery cost line. */
+  casesCost: number;
+  /** casesAboveCapacity × feePerResolvedCase × surgeRate. */
+  surgeReserve: number;
+  /** setupFee + casesCost + surgeReserve. */
   planTotal: number;
   /** fineCeiling / planTotal, e.g. 9.19 → shown as "9:1". */
   ratio: number;
@@ -93,8 +115,18 @@ export function validateRecordsAffected(value: unknown): number {
   return parsed;
 }
 
+function validateContractedCapacity(value: number): number {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new PricingValidationError(
+      "La capacidad contratada debe ser un número entero mayor o igual a 0.",
+    );
+  }
+  return value;
+}
+
 /**
  * Quote = setup + (records × activation × fee per resolved case) + surge reserve.
+ * Surge reserve = max(0, expectedCases - contractedCapacity) × fee × surgeRate.
  * Fine ceiling = 320,000 × UMA, ×2 if sensitive.
  */
 export function computeQuote(
@@ -102,11 +134,9 @@ export function computeQuote(
   config: PricingConfig = DEFAULT_PRICING_CONFIG,
 ): QuoteResult {
   const recordsAffected = validateRecordsAffected(input.recordsAffected);
-
-  const surgeReserve = input.surgeReserve ?? 0;
-  if (surgeReserve < 0) {
-    throw new PricingValidationError("La reserva de surge no puede ser negativa.");
-  }
+  const contractedCapacity = validateContractedCapacity(
+    input.contractedCapacity ?? config.defaultContractedCapacity,
+  );
 
   const fineCeiling =
     config.fineBaseMultiplierUma *
@@ -114,10 +144,26 @@ export function computeQuote(
     (input.sensitiveData ? config.sensitiveMultiplier : 1);
 
   const expectedCases = Math.round(recordsAffected * config.activationRate);
+  const casesAboveCapacity = Math.max(0, expectedCases - contractedCapacity);
 
-  const planTotal = config.setupFee + expectedCases * config.feePerResolvedCase + surgeReserve;
+  const setupFee = config.setupFee;
+  const casesCost = expectedCases * config.feePerResolvedCase;
+  const surgeReserve = casesAboveCapacity * config.feePerResolvedCase * config.surgeRate;
+
+  const planTotal = setupFee + casesCost + surgeReserve;
 
   const ratio = planTotal > 0 ? fineCeiling / planTotal : 0;
 
-  return { recordsAffected, fineCeiling, expectedCases, planTotal, ratio };
+  return {
+    recordsAffected,
+    fineCeiling,
+    expectedCases,
+    contractedCapacity,
+    casesAboveCapacity,
+    setupFee,
+    casesCost,
+    surgeReserve,
+    planTotal,
+    ratio,
+  };
 }

@@ -7,22 +7,30 @@ import {
 } from "./pricing";
 
 describe("computeQuote", () => {
-  it("matches the hand calculation from the packet mockup (500,000 records, sensitive)", () => {
+  it("matches the hand calculation for 500,000 sensitive records at default capacity", () => {
     const result = computeQuote({ recordsAffected: 500_000, sensitiveData: true });
 
-    // 320,000 * 117 * 2
-    expect(result.fineCeiling).toBe(74_880_000);
+    // 320,000 * 117.31 * 2
+    expect(result.fineCeiling).toBe(75_078_400);
     // round(500,000 * 0.02)
     expect(result.expectedCases).toBe(10_000);
-    // 150,000 + 10,000 * 800 + 0 surge reserve
-    expect(result.planTotal).toBe(8_150_000);
-    expect(result.ratio).toBeCloseTo(9.1877, 3);
+    expect(result.contractedCapacity).toBe(500);
+    // 10,000 - 500
+    expect(result.casesAboveCapacity).toBe(9_500);
+    expect(result.setupFee).toBe(150_000);
+    // 10,000 * 800
+    expect(result.casesCost).toBe(8_000_000);
+    // 9,500 * 800 * 0.30
+    expect(result.surgeReserve).toBe(2_280_000);
+    // 150,000 + 8,000,000 + 2,280,000
+    expect(result.planTotal).toBe(10_430_000);
+    expect(result.ratio).toBeCloseTo(7.1983, 3);
   });
 
   it("halves the fine ceiling when data is not sensitive", () => {
     const result = computeQuote({ recordsAffected: 500_000, sensitiveData: false });
-    // 320,000 * 117
-    expect(result.fineCeiling).toBe(37_440_000);
+    // 320,000 * 117.31
+    expect(result.fineCeiling).toBe(37_539_200);
   });
 
   it("rounds expected cases to the nearest whole victim", () => {
@@ -31,18 +39,37 @@ describe("computeQuote", () => {
     expect(result.expectedCases).toBe(2);
   });
 
-  it("adds an explicit surge reserve to the plan total when provided", () => {
+  it("charges no surge reserve when expected cases stay within contracted capacity", () => {
+    // 20,000 records * 0.02 = 400 expected cases, under the 500 default capacity
+    const result = computeQuote({ recordsAffected: 20_000, sensitiveData: false });
+    expect(result.expectedCases).toBe(400);
+    expect(result.casesAboveCapacity).toBe(0);
+    expect(result.surgeReserve).toBe(0);
+    expect(result.planTotal).toBe(result.setupFee + result.casesCost);
+  });
+
+  it("accepts a custom contracted capacity and recomputes the surge reserve", () => {
     const result = computeQuote({
       recordsAffected: 500_000,
       sensitiveData: true,
-      surgeReserve: 1_000_000,
+      contractedCapacity: 2_000,
     });
-    expect(result.planTotal).toBe(9_150_000);
+    expect(result.contractedCapacity).toBe(2_000);
+    // 10,000 - 2,000
+    expect(result.casesAboveCapacity).toBe(8_000);
+    // 8,000 * 800 * 0.30
+    expect(result.surgeReserve).toBe(1_920_000);
   });
 
-  it("rejects a negative surge reserve", () => {
+  it("rejects a negative contracted capacity", () => {
     expect(() =>
-      computeQuote({ recordsAffected: 100, sensitiveData: false, surgeReserve: -1 }),
+      computeQuote({ recordsAffected: 100, sensitiveData: false, contractedCapacity: -1 }),
+    ).toThrow(PricingValidationError);
+  });
+
+  it("rejects a non-integer contracted capacity", () => {
+    expect(() =>
+      computeQuote({ recordsAffected: 100, sensitiveData: false, contractedCapacity: 1.5 }),
     ).toThrow(PricingValidationError);
   });
 

@@ -19,6 +19,39 @@
   color: #0a2540;
 }
 
+.authBar {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 180px;
+}
+
+.authForm {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.authEmail {
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.authButton {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0a2540;
+  cursor: pointer;
+}
+
+.authButton:hover {
+  background: #f3f4f6;
+}
+
 .badge {
   display: inline-block;
   background: #e5e7eb;

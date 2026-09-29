@@ -5,6 +5,68 @@ Newest entry first.
 
 ---
 
+## 2026-09-29 — Quote saved with zero data types broke notice drafting
+
+**Bug:** A quote was saved with an empty `data_types` array — nothing
+stopped it at any layer (the form let "Calcular cotización" and
+"Guardar cotización" both run with no checkbox selected; `saveQuote()`
+filtered the array against the allowlist but never checked the result
+was non-empty). Later, clicking "Redactar aviso con IA" on that quote
+sent the model zero data types and it correctly replied "no puedo
+generar el aviso porque los tipos de datos no fueron especificados" —
+a wasted API call surfacing a data problem as an AI failure.
+
+**Fix:**
+- `src/lib/dataTypes.ts` (new) — single source of truth for the
+  allowed data types, replacing a duplicated local array in
+  `QuoteCalculator.tsx` and a duplicated `Set` in `saveQuote()`.
+  `validateDataTypes()` throws `DataTypesValidationError` on a
+  non-array, an empty array, or an array that's empty after dropping
+  unknown values — never silently returns `[]`.
+- `src/components/QuoteCalculator.tsx` — `handleSubmit` now calls
+  `validateDataTypes(dataTypes)` before `computeQuote()`, so
+  "Calcular cotización" itself refuses to run with no data type
+  selected (not just "Guardar cotización").
+- `src/app/quotes/actions.ts` — `saveQuote()` uses the shared
+  validator instead of its own inline filter, so the empty case is
+  rejected server-side regardless of what the client sent.
+- `src/app/quotes/[id]/actions.ts` — `draftNotice()` now checks
+  `dataTypes.length === 0` immediately after loading the quote and
+  returns a friendly Spanish message *before* constructing the
+  Anthropic request — no API call is made for a quote with no data
+  types.
+- `supabase/migrations/005_quotes_data_types_not_empty.sql` (not
+  applied yet) — `CHECK (cardinality(data_types) >= 1)` on
+  `public.quotes`, closing the gap for any write path other than the
+  app. Deliberately uses `cardinality()`, not
+  `array_length(data_types, 1)` — the latter returns `NULL` (not `0`)
+  for an empty array, and a `NULL` result in a Postgres `CHECK`
+  constraint is treated as *passing*, not failing, which would have
+  silently let the exact bug back in.
+
+**Test:** `src/lib/dataTypes.test.ts`, 9 tests, all green — including
+one asserting the literal empty-array case that caused the live bug,
+one confirming unknown values are dropped rather than kept, and one
+confirming an array that's all-unknown-values is rejected (empty after
+filtering counts as empty). `draftNotice()`'s refusal check and the DB
+constraint are both simple guards with no pure-function core to
+unit-test — verified by code review and by re-running the full suite.
+
+`npm test`: **49/49 passing** (17 pricing + 12 invoice + 11 curpHash +
+9 dataTypes). `npm run build` and `npm run lint`: clean.
+
+**Not yet live:** `supabase/migrations/005_quotes_data_types_not_empty.sql`
+has not been run. Until it is, the DB itself still accepts an empty
+`data_types` array — the app-level fixes above are what actually closes
+the bug in the shipped product; the migration is defense in depth. If
+the quote that triggered this bug still has `data_types = '{}'` in
+production, either delete it or add data types to it (e.g. `update
+quotes set data_types = array['CURP'] where id = '<id>'`) before
+running the migration, or the `ALTER TABLE ADD CONSTRAINT` will fail
+validating that row.
+
+---
+
 ## 2026-09-29 — LLM notice drafting (Dragon Stack)
 
 **Feature, not a bug fix.** "Redactar aviso con IA" on the Casos dashboard:

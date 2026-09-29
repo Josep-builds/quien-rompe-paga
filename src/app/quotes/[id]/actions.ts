@@ -229,6 +229,14 @@ export async function draftNotice(quoteId: string): Promise<ActionResult<{ draft
   const dataTypes = (quoteDetails.data_types as string[] | null) ?? [];
   const recordsAffected = quoteDetails.records_affected as number;
 
+  if (dataTypes.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Esta cotización no tiene tipos de datos registrados, así que no se puede redactar el aviso.",
+    };
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "El servicio de IA no está configurado." };

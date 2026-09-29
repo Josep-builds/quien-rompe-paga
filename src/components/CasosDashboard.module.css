@@ -207,3 +207,40 @@
   color: #b91c1c;
   font-size: 0.75rem;
 }
+
+.aiBadge {
+  display: inline-block;
+  background: #ede9fe;
+  color: #5b21b6;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  margin-bottom: 0.75rem;
+}
+
+.noticeTextarea {
+  width: 100%;
+  min-height: 220px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  margin-bottom: 0.75rem;
+}
+
+.approvedNoticeBox {
+  white-space: pre-wrap;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #14532d;
+  margin-top: 0.5rem;
+}

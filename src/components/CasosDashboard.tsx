@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./CasosDashboard.module.css";
 import {
+  approveNotice,
+  draftNotice,
   generateSimulatedCases,
   resolveCase,
   updateContractedCapacity,
@@ -15,10 +17,13 @@ export interface QuoteRow {
   id: string;
   records_affected: number;
   sensitive_data: boolean;
+  data_types: string[] | null;
   contracted_capacity: number;
   setup_fee: number;
   plan_total: number;
   fine_ceiling: number;
+  notice_approved_text: string | null;
+  notice_approved_at: string | null;
   created_at: string;
 }
 
@@ -121,6 +126,8 @@ export function CasosDashboard({ quote, cases }: { quote: QuoteRow; cases: CaseR
             : "Casos generados por arriba de esta capacidad se facturan con recargo de surge (+30%)."}
         </p>
       </div>
+
+      <NoticePanel quote={quote} onApproved={() => router.refresh()} />
 
       <div className={styles.panel}>
         <div className={styles.panelTitle}>Casos simulados</div>
@@ -231,6 +238,111 @@ function ResolveCaseForm({ caseId, onResolved }: { caseId: string; onResolved: (
         {saving ? "Guardando…" : "Marcar resuelto"}
       </button>
       {error && <span className={styles.smallError}>{error}</span>}
+    </div>
+  );
+}
+
+type NoticeState =
+  | { status: "idle" }
+  | { status: "drafting" }
+  | { status: "draft"; text: string }
+  | { status: "approving"; text: string }
+  | { status: "error"; message: string };
+
+function NoticePanel({ quote, onApproved }: { quote: QuoteRow; onApproved: () => void }) {
+  const [state, setState] = useState<NoticeState>({ status: "idle" });
+
+  async function handleDraft() {
+    setState({ status: "drafting" });
+    const result = await draftNotice(quote.id);
+    if (!result.ok) {
+      setState({ status: "error", message: result.error });
+      return;
+    }
+    setState({ status: "draft", text: result.data.draft });
+  }
+
+  async function handleApprove() {
+    if (state.status !== "draft" && state.status !== "approving") return;
+    const text = state.text;
+    setState({ status: "approving", text });
+    const result = await approveNotice(quote.id, text);
+    if (!result.ok) {
+      setState({ status: "error", message: result.error });
+      return;
+    }
+    onApproved();
+  }
+
+  const editableText =
+    state.status === "draft" || state.status === "approving" ? state.text : null;
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.panelTitle}>Aviso de brecha</div>
+
+      {quote.notice_approved_text && editableText === null && (
+        <div className={styles.hint}>
+          Texto aprobado el{" "}
+          {quote.notice_approved_at
+            ? new Date(quote.notice_approved_at).toLocaleString("es-MX")
+            : ""}
+          .
+        </div>
+      )}
+
+      {editableText === null ? (
+        <>
+          <button
+            type="button"
+            className={styles.button}
+            onClick={handleDraft}
+            disabled={state.status === "drafting"}
+          >
+            {state.status === "drafting" ? "Redactando…" : "Redactar aviso con IA"}
+          </button>
+          {state.status === "error" && <div className={styles.error}>{state.message}</div>}
+          <p className={styles.hint}>
+            Usa solo el número de registros y los tipos de datos de esta cotización — nunca
+            nombres ni identificadores de víctimas.
+          </p>
+          {quote.notice_approved_text && (
+            <div className={styles.approvedNoticeBox}>{quote.notice_approved_text}</div>
+          )}
+        </>
+      ) : (
+        <>
+          <span className={styles.aiBadge}>GENERADO POR IA — requiere aprobación humana</span>
+          <textarea
+            className={styles.noticeTextarea}
+            value={editableText}
+            onChange={(e) => setState({ status: "draft", text: e.target.value })}
+            maxLength={5000}
+          />
+          <div className={styles.capacityRow}>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={handleApprove}
+              disabled={state.status === "approving" || editableText.trim().length === 0}
+            >
+              {state.status === "approving" ? "Guardando…" : "Aprobar texto"}
+            </button>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={handleDraft}
+              disabled={state.status === "approving"}
+            >
+              Redactar de nuevo
+            </button>
+          </div>
+          {state.status === "error" && <div className={styles.error}>{state.message}</div>}
+          <p className={styles.hint}>
+            Nada se publica hasta que apruebes el texto. Puedes editarlo antes de aprobar.
+          </p>
+        </>
+      )}
     </div>
   );
 }

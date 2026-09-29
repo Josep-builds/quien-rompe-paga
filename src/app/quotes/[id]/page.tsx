@@ -21,7 +21,7 @@ export default async function QuoteCasosPage({
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id, records_affected, sensitive_data, contracted_capacity, setup_fee, plan_total, fine_ceiling, created_at",
+      "id, records_affected, sensitive_data, data_types, contracted_capacity, setup_fee, plan_total, fine_ceiling, notice_approved_text, notice_approved_at, created_at",
     )
     .eq("id", id)
     .single<QuoteRow>();

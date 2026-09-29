@@ -5,7 +5,68 @@ Newest entry first.
 
 ---
 
+## 2026-09-29 — AI notice invented facts not in the input
+
+**Bug:** The AI-drafted breach notice asserted things it was never told:
+"la vulnerabilidad ya fue cerrada" (claimed the issue was already fixed),
+"hemos notificado a las autoridades" (claimed authorities were already
+notified), and "bloqueo de CURP ante RENAPO" (a specific government
+procedure invented as if it were real). `draftNotice()`'s only input is
+`records_affected` and `data_types` (see the previous entry below), so
+any other concrete claim in the output is fabricated.
+
+**Fix:**
+- `src/lib/noticePrompt.ts` (new) — the system prompt, moved out of
+  `src/app/quotes/[id]/actions.ts`. Server Action files (`"use server"`)
+  can only export async functions, so the prompt string couldn't be
+  unit-tested while it lived there.
+- Added an explicit "Reglas contra invención de hechos" section:
+  forbids asserting the breach's cause, its fix/resolution status, or
+  that authorities/third parties were notified, and forbids inventing
+  specific government procedures or institutional processes the model
+  isn't certain are real (the RENAPO example is named directly as a
+  forbidden pattern). Instructs bracketed placeholders instead of
+  guessing — `[CAUSA — por confirmar]`, `[ESTADO DE LA CORRECCIÓN — por
+  confirmar]`, `[NOTIFICACIÓN A AUTORIDADES — por confirmar]`.
+  Recommended actions must stay generic/verifiable (change passwords,
+  monitor accounts, generic references to well-known institutions like
+  Buró de Crédito or CONDUSEF) rather than naming specific procedures
+  of those institutions the model doesn't know for certain exist.
+
+**Test:** `src/lib/noticePrompt.test.ts`, 11 tests — can't unit-test the
+model's actual output (non-deterministic, needs a live API call), so
+these guard the prompt text itself: each of the three forbidden claims
+from the bug report has a dedicated assertion (cause, fix-status,
+authority-notification, and the literal "RENAPO" example), plus the
+placeholder instruction and the earlier INAI/Markdown rules (regression
+guards from prior fixes). `buildNoticeUserPrompt()` formatting is also
+covered.
+
+**Manually verified against the real API** (scratch script, not
+committed) reproducing the exact scenario that triggered the bug —
+500,000 records, CURP + Teléfono: output now reads "[CAUSA — por
+confirmar]", "[ESTADO DE LA CORRECCIÓN — por confirmar]", and even
+spontaneously "[FECHA — por confirmar]" for dates that were never
+provided (the instruction generalized correctly beyond the three named
+examples). No fabricated authority notifications, no invented
+procedures, `stop_reason: "end_turn"`.
+
+`npm test`: **60/60 passing** (17 pricing + 12 invoice + 11 curpHash +
+9 dataTypes + 11 noticePrompt). `npm run build` and `npm run lint`: clean.
+
+**No SQL needed** — this is a prompt-only fix; nothing in the DB schema
+changes.
+
+---
+
 ## 2026-09-29 — Quote saved with zero data types broke notice drafting
+
+**Already fixed and pushed earlier today** (commits `3da463b`,
+`f437e18`, migration `005_quotes_data_types_not_empty.sql`) — see below.
+Re-confirmed still in place while addressing the fabrication bug above:
+`validateDataTypes()` is wired into both `QuoteCalculator.handleSubmit`
+and `saveQuote()`, and `draftNotice()` still refuses to call the model
+on an empty `data_types` array. No changes needed.
 
 **Bug:** A quote was saved with an empty `data_types` array — nothing
 stopped it at any layer (the form let "Calcular cotización" and

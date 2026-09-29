@@ -5,6 +5,60 @@ Newest entry first.
 
 ---
 
+## 2026-09-29 — LLM notice drafting (Dragon Stack)
+
+**Feature, not a bug fix.** "Redactar aviso con IA" on the Casos dashboard:
+a server action calls the Anthropic API to draft a breach notice + five
+moves, requires human approval before anything is saved, and never sends
+victim-level data to the model.
+
+**Built:**
+- `supabase/migrations/004_notice_approval.sql` (not applied yet) —
+  `quotes.notice_approved_text` + `notice_approved_at`, with a `CHECK`
+  keeping the pair in sync. The AI draft itself is never persisted
+  server-side — only human-approved text is written.
+- `src/app/quotes/[id]/actions.ts` — `draftNotice(quoteId)` calls
+  `claude-haiku-4-5` with only `data_types` and `records_affected` from
+  the quote (no victim names/identifiers, nothing else in the input);
+  `approveNotice(quoteId, text)` validates non-empty + ≤5000 chars and
+  saves. Typed error handling: `AuthenticationError`,
+  `RateLimitError`, `APIConnectionError` (checked before the base
+  `APIError`, since it's a subclass in the TS SDK), and a generic
+  `APIError` fallback — each mapped to a friendly Spanish message
+  instead of a raw stack trace reaching the user.
+- `src/components/CasosDashboard.tsx` — new "Aviso de brecha" panel:
+  draft → visible "GENERADO POR IA — requiere aprobación humana" badge
+  → editable textarea → "Aprobar texto". Nothing reaches the database
+  until approval; re-drafting is available before or after approving.
+
+**System prompt hardening (found live, fixed before commit):** the first
+version instructed "texto plano" but the model still returned Markdown
+headers/bullets and a "Querido cliente," salutation — that would have
+shown literal `#`/`**` clutter in a plain `<textarea>`. Tightened the
+prompt with explicit Markdown-forbidding and salutation-forbidding
+rules; verified against the real API (script run locally, not
+committed) that the corrected prompt produces clean plain-text output:
+notice paragraph + "Cinco acciones recomendadas:" + a numbered list of
+five, each tied to a data type (CURP → official-ID fraud check, teléfono
+→ suspicious-call monitoring), no INAI mention anywhere, `stop_reason:
+"end_turn"` well inside the 1024-token budget (471 output tokens used).
+
+**Test:** no new unit tests — this feature is a live API call with no
+pure-function core to unit-test (unlike pricing/invoice/curpHash). Manual
+verification only, against the real Anthropic API: (1) prompt returns
+plain text, no Markdown; (2) five actions, each linked to an exposed data
+type; (3) no INAI mention; (4) `npm run build`/`lint`/`test` all clean
+(40/40 existing tests unaffected); (5) `/quotes/[id]` still redirects
+signed-out visitors (307, confirmed via curl).
+
+**Not yet live:** `supabase/migrations/004_notice_approval.sql` has not
+been run — "Aprobar texto" will fail against production until it is
+(the two new columns don't exist yet). `draftNotice()` itself doesn't
+depend on the migration and should work once `ANTHROPIC_API_KEY` is live
+in Vercel.
+
+---
+
 ## 2026-09-28 — Security tooling + shadow clause (Blueprint Condition #3): /verificar
 
 **Feature, not a bug fix.** Implements the victim-facing k-anonymity CURP

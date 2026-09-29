@@ -10,9 +10,8 @@ import {
   PricingValidationError,
   QuoteResult,
 } from "@/lib/pricing";
+import { DataTypesValidationError, DATA_TYPE_OPTIONS, validateDataTypes } from "@/lib/dataTypes";
 import { saveQuote } from "@/app/quotes/actions";
-
-const DATA_TYPE_OPTIONS = ["CURP", "INE", "Teléfono", "Datos financieros"];
 
 const currency = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -46,11 +45,12 @@ export function QuoteCalculator({ isAuthenticated }: { isAuthenticated: boolean 
     event.preventDefault();
     setSaveState({ status: "idle" });
     try {
+      validateDataTypes(dataTypes);
       const quote = computeQuote({ recordsAffected, sensitiveData });
       setResult(quote);
       setError(null);
     } catch (err) {
-      if (err instanceof PricingValidationError) {
+      if (err instanceof DataTypesValidationError || err instanceof PricingValidationError) {
         setError(err.message);
         setResult(null);
       } else {

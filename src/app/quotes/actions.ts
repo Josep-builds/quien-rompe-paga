@@ -1,10 +1,8 @@
 "use server";
 
 import { computeQuote, PricingValidationError } from "@/lib/pricing";
+import { DataTypesValidationError, validateDataTypes } from "@/lib/dataTypes";
 import { createClient } from "@/lib/supabase/server";
-
-const ALLOWED_DATA_TYPES = new Set(["CURP", "INE", "Teléfono", "Datos financieros"]);
-const MAX_DATA_TYPES = ALLOWED_DATA_TYPES.size;
 
 export interface SaveQuoteInput {
   recordsAffected: string;
@@ -33,12 +31,15 @@ export async function saveQuote(input: SaveQuoteInput): Promise<SaveQuoteResult>
     return { ok: false, error: "Inicia sesión con Google para guardar la cotización." };
   }
 
-  if (!Array.isArray(input.dataTypes) || input.dataTypes.length > MAX_DATA_TYPES) {
-    return { ok: false, error: "Tipo de datos inválido." };
+  let dataTypes;
+  try {
+    dataTypes = validateDataTypes(input.dataTypes);
+  } catch (err) {
+    if (err instanceof DataTypesValidationError) {
+      return { ok: false, error: err.message };
+    }
+    throw err;
   }
-  const dataTypes = Array.from(new Set(input.dataTypes)).filter((type) =>
-    ALLOWED_DATA_TYPES.has(type),
-  );
 
   let quote;
   try {
